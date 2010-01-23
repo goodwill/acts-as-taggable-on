@@ -23,7 +23,7 @@ module ActiveRecord
             # tag references from same model without getting an ambiguous column error
             class_eval do
               has_many "#{tag_type.singularize}_taggings".to_sym, :as => :taggable, :dependent => :destroy,
-                :include => :tag, :conditions => ['#{aliased_join_table_name || Tagging.table_name rescue Tagging.table_name}.context = ?',tag_type], :class_name => "Tagging"
+                :include => :tag, :conditions => ['#{aliased_join_table_name || ::Tagging.table_name rescue ::Tagging.table_name}.context = ?',tag_type], :class_name => "::Tagging"
               has_many "#{tag_type}".to_sym, :through => "#{tag_type.singularize}_taggings".to_sym, :source => :tag
             end
 
@@ -90,7 +90,7 @@ module ActiveRecord
               write_inheritable_attribute(:tag_types, args.uniq)
               class_inheritable_reader :tag_types
 
-              has_many :taggings, :as => :taggable, :dependent => :destroy, :include => :tag
+              has_many :taggings, :as => :taggable, :dependent => :destroy, :include => :tag, :class_name=>'::Tagging'
               has_many :base_tags, :class_name => "Tag", :through => :taggings, :source => :tag
 
               attr_writer :custom_contexts
@@ -152,11 +152,11 @@ module ActiveRecord
 
           if options.delete(:exclude)
             tags_conditions = tag_list.map { |t| sanitize_sql(["#{Tag.table_name}.name LIKE ?", t]) }.join(" OR ")
-            conditions << "#{table_name}.#{primary_key} NOT IN (SELECT #{Tagging.table_name}.taggable_id FROM #{Tagging.table_name} JOIN #{Tag.table_name} ON #{Tagging.table_name}.tag_id = #{Tag.table_name}.id AND (#{tags_conditions}) WHERE #{Tagging.table_name}.taggable_type = #{quote_value(base_class.name)})"
+            conditions << "#{table_name}.#{primary_key} NOT IN (SELECT #{::Tagging.table_name}.taggable_id FROM #{::Tagging.table_name} JOIN #{Tag.table_name} ON #{::Tagging.table_name}.tag_id = #{Tag.table_name}.id AND (#{tags_conditions}) WHERE #{::Tagging.table_name}.taggable_type = #{quote_value(base_class.name)})"
 
           elsif options.delete(:any)
             tags_conditions = tag_list.map { |t| sanitize_sql(["#{Tag.table_name}.name LIKE ?", t]) }.join(" OR ")
-            conditions << "#{table_name}.#{primary_key} IN (SELECT #{Tagging.table_name}.taggable_id FROM #{Tagging.table_name} JOIN #{Tag.table_name} ON #{Tagging.table_name}.tag_id = #{Tag.table_name}.id AND (#{tags_conditions}) WHERE #{Tagging.table_name}.taggable_type = #{quote_value(base_class.name)})"
+            conditions << "#{table_name}.#{primary_key} IN (SELECT #{::Tagging.table_name}.taggable_id FROM #{::Tagging.table_name} JOIN #{Tag.table_name} ON #{::Tagging.table_name}.tag_id = #{Tag.table_name}.id AND (#{tags_conditions}) WHERE #{::Tagging.table_name}.taggable_type = #{quote_value(base_class.name)})"
 
           else
             tags = Tag.named_like_any(tag_list)
@@ -168,7 +168,7 @@ module ActiveRecord
 
               taggings_alias = "#{table_name}_taggings_#{prefix}"
 
-              tagging_join  = "JOIN #{Tagging.table_name} #{taggings_alias}" +
+              tagging_join  = "JOIN #{::Tagging.table_name} #{taggings_alias}" +
                               "  ON #{taggings_alias}.taggable_id = #{table_name}.#{primary_key}" +
                               " AND #{taggings_alias}.taggable_type = #{quote_value(base_class.name)}" +
                               " AND #{taggings_alias}.tag_id = #{tag.id}"
@@ -181,7 +181,7 @@ module ActiveRecord
           taggings_alias, tags_alias = "#{table_name}_taggings_group", "#{table_name}_tags_group"
 
           if options.delete(:match_all)
-            joins << "LEFT OUTER JOIN #{Tagging.table_name} #{taggings_alias}" +
+            joins << "LEFT OUTER JOIN #{::Tagging.table_name} #{taggings_alias}" +
                      "  ON #{taggings_alias}.taggable_id = #{table_name}.#{primary_key}" +
                      " AND #{taggings_alias}.taggable_type = #{quote_value(base_class.name)}"
 
@@ -209,11 +209,11 @@ module ActiveRecord
           options.assert_valid_keys :start_at, :end_at, :conditions, :at_least, :at_most, :order, :limit, :on, :id
 
           scope = scope(:find)
-          start_at = sanitize_sql(["#{Tagging.table_name}.created_at >= ?", options.delete(:start_at)]) if options[:start_at]
-          end_at = sanitize_sql(["#{Tagging.table_name}.created_at <= ?", options.delete(:end_at)]) if options[:end_at]
+          start_at = sanitize_sql(["#{::Tagging.table_name}.created_at >= ?", options.delete(:start_at)]) if options[:start_at]
+          end_at = sanitize_sql(["#{::Tagging.table_name}.created_at <= ?", options.delete(:end_at)]) if options[:end_at]
 
-          taggable_type = sanitize_sql(["#{Tagging.table_name}.taggable_type = ?", base_class.name])
-          taggable_id = sanitize_sql(["#{Tagging.table_name}.taggable_id = ?", options.delete(:id)]) if options[:id]
+          taggable_type = sanitize_sql(["#{::Tagging.table_name}.taggable_type = ?", base_class.name])
+          taggable_id = sanitize_sql(["#{::Tagging.table_name}.taggable_id = ?", options.delete(:id)]) if options[:id]
           options[:conditions] = sanitize_sql(options[:conditions]) if options[:conditions]
 
           conditions = [
@@ -227,9 +227,9 @@ module ActiveRecord
           conditions = conditions.compact.join(' AND ')
           conditions = merge_conditions(conditions, scope[:conditions]) if scope
 
-          joins = ["LEFT OUTER JOIN #{Tagging.table_name} ON #{Tag.table_name}.id = #{Tagging.table_name}.tag_id"]
-          joins << sanitize_sql(["AND #{Tagging.table_name}.context = ?",options.delete(:on).to_s]) unless options[:on].nil?
-          joins << " INNER JOIN #{table_name} ON #{table_name}.#{primary_key} = #{Tagging.table_name}.taggable_id"
+          joins = ["LEFT OUTER JOIN #{::Tagging.table_name} ON #{Tag.table_name}.id = #{::Tagging.table_name}.tag_id"]
+          joins << sanitize_sql(["AND #{::Tagging.table_name}.context = ?",options.delete(:on).to_s]) unless options[:on].nil?
+          joins << " INNER JOIN #{table_name} ON #{table_name}.#{primary_key} = #{::Tagging.table_name}.taggable_id"
           
           unless descends_from_active_record?
             # Current model is STI descendant, so add type checking to the join condition
@@ -305,10 +305,10 @@ module ActiveRecord
 
         def tags_on(context, owner=nil)
           if owner
-            opts = {:conditions => ["#{Tagging.table_name}.context = ? AND #{Tagging.table_name}.tagger_id = ? AND #{Tagging.table_name}.tagger_type = ?",
+            opts = {:conditions => ["#{::Tagging.table_name}.context = ? AND #{::Tagging.table_name}.tagger_id = ? AND #{::Tagging.table_name}.tagger_type = ?",
                                     context.to_s, owner.id, owner.class.to_s]}
           else
-            opts = {:conditions => ["#{Tagging.table_name}.context = ?", context.to_s]}
+            opts = {:conditions => ["#{::Tagging.table_name}.context = ?", context.to_s]}
           end
           base_tags.find(:all, opts)
         end
@@ -338,8 +338,8 @@ module ActiveRecord
           exclude_self = "#{klass.table_name}.id != #{id} AND" if self.class == klass
 
           { :select     => "#{klass.table_name}.*, COUNT(#{Tag.table_name}.id) AS count",
-            :from       => "#{klass.table_name}, #{Tag.table_name}, #{Tagging.table_name}",
-            :conditions => ["#{exclude_self} #{klass.table_name}.id = #{Tagging.table_name}.taggable_id AND #{Tagging.table_name}.taggable_type = '#{klass.to_s}' AND #{Tagging.table_name}.tag_id = #{Tag.table_name}.id AND #{Tag.table_name}.name IN (?)", tags_to_find],
+            :from       => "#{klass.table_name}, #{Tag.table_name}, #{::Tagging.table_name}",
+            :conditions => ["#{exclude_self} #{klass.table_name}.id = #{::Tagging.table_name}.taggable_id AND #{::Tagging.table_name}.taggable_type = '#{klass.to_s}' AND #{::Tagging.table_name}.tag_id = #{Tag.table_name}.id AND #{Tag.table_name}.name IN (?)", tags_to_find],
             :group      => grouped_column_names_for(klass),
             :order      => "count DESC"
           }.update(options)
@@ -357,8 +357,8 @@ module ActiveRecord
           exclude_self = "#{klass.table_name}.id != #{id} AND" if self.class == klass
 
           { :select     => "#{klass.table_name}.*, COUNT(#{Tag.table_name}.id) AS count",
-            :from       => "#{klass.table_name}, #{Tag.table_name}, #{Tagging.table_name}",
-            :conditions => ["#{exclude_self} #{klass.table_name}.id = #{Tagging.table_name}.taggable_id AND #{Tagging.table_name}.taggable_type = '#{klass.to_s}' AND #{Tagging.table_name}.tag_id = #{Tag.table_name}.id AND #{Tag.table_name}.name IN (?) AND #{Tagging.table_name}.context = ?", tags_to_find, result_context],
+            :from       => "#{klass.table_name}, #{Tag.table_name}, #{::Tagging.table_name}",
+            :conditions => ["#{exclude_self} #{klass.table_name}.id = #{::Tagging.table_name}.taggable_id AND #{::Tagging.table_name}.taggable_type = '#{klass.to_s}' AND #{::Tagging.table_name}.tag_id = #{Tag.table_name}.id AND #{Tag.table_name}.name IN (?) AND #{::Tagging.table_name}.context = ?", tags_to_find, result_context],
             :group      => grouped_column_names_for(klass),
             :order      => "count DESC"
           }.update(options)
@@ -383,7 +383,7 @@ module ActiveRecord
               base_tags.delete(*old_tags) if old_tags.any?
               new_tag_names.each do |new_tag_name|
                 new_tag = Tag.find_or_create_with_like_by_name(new_tag_name)
-                Tagging.create(:tag_id => new_tag.id, :context => tag_type,
+                ::Tagging.create(:tag_id => new_tag.id, :context => tag_type,
                                :taggable => self, :tagger => owner)
               end
             end
